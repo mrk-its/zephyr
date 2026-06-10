@@ -369,7 +369,7 @@ int flash_stm32_option_bytes_write(const struct device *dev, uint32_t mask, uint
 		return 0;
 	}
 
-	if (regs->NSCR & FLASH_NSCR_OPTLOCK) {
+	if ((regs->NSCR & FLASH_NSCR_OPTLOCK) != 0) {
 		return -EIO;
 	}
 
