@@ -117,7 +117,6 @@ static void i2c_stm32_reset(const struct device *dev)
 #endif
 }
 
-
 static void i2c_stm32_controller_finish(const struct device *dev)
 {
 	const struct i2c_stm32_config *cfg = dev->config;
@@ -437,7 +436,6 @@ static inline void handle_btf(const struct device *dev)
 	}
 }
 
-
 #if defined(CONFIG_I2C_TARGET)
 static void i2c_stm32_target_event(const struct device *dev)
 {
@@ -699,8 +697,7 @@ static int32_t i2c_stm32_msg_write(const struct device *dev, struct i2c_msg *msg
 
 	i2c_stm32_enable_transfer_interrupts(dev);
 
-	if (k_sem_take(&data->device_sync_sem,
-		       K_MSEC(CONFIG_I2C_STM32_TRANSFER_TIMEOUT_MSEC)) != 0) {
+	if (k_sem_take(&data->device_sync_sem, I2C_TRANSFER_TIMEOUT) != 0) {
 		LOG_DBG("%s: WRITE timeout", __func__);
 		i2c_stm32_reset(dev);
 		return -EIO;
@@ -721,8 +718,7 @@ static int32_t i2c_stm32_msg_read(const struct device *dev, struct i2c_msg *msg,
 	i2c_stm32_enable_transfer_interrupts(dev);
 	LL_I2C_EnableIT_RX(i2c);
 
-	if (k_sem_take(&data->device_sync_sem,
-		       K_MSEC(CONFIG_I2C_STM32_TRANSFER_TIMEOUT_MSEC)) != 0) {
+	if (k_sem_take(&data->device_sync_sem, I2C_TRANSFER_TIMEOUT) != 0) {
 		LOG_DBG("%s: READ timeout", __func__);
 		i2c_stm32_reset(dev);
 		return -EIO;

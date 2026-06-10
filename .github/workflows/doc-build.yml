@@ -32,7 +32,7 @@ jobs:
         ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
     - name: Check if Documentation related files changed
-      uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v47.0.5
+      uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
       id: check-doc-files
       with:
         files: |
@@ -124,7 +124,7 @@ jobs:
         pip install -r doc/requirements.txt --require-hashes
 
     - name: Set up Node.js
-      uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+      uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
       with:
         node-version: 24
 
@@ -163,6 +163,7 @@ jobs:
         genhtml --no-function-coverage --no-branch-coverage new.info -o coverage-report
 
     - name: Run accessibility check (pa11y)
+      if: false # temporarily disabled due to CI issues
       run: |
         apt-get update -qq && apt-get install -y --no-install-recommends \
           libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
@@ -247,9 +248,10 @@ jobs:
         tar --use-compress-program="xz -T0" -cf html-output.tar.xz --exclude html/_sources --exclude html/doxygen/xml --directory=doc/_build html
         tar --use-compress-program="xz -T0" -cf api-output.tar.xz --directory=doc/_build html/doxygen/html
         tar --use-compress-program="xz -T0" -cf api-coverage.tar.xz coverage-report
-        tar --use-compress-program="xz -T0" -cf accessibility-report.tar.xz pa11y-ci-report
+        # tar --use-compress-program="xz -T0" -cf accessibility-report.tar.xz pa11y-ci-report # temporarily disabled due to CI issues
 
     - name: Upload accessibility report
+      if: false # temporarily disabled due to CI issues
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
         name: accessibility-report
@@ -335,7 +337,7 @@ jobs:
         echo "/opt/doxygen-${DOXYGEN_VERSION}/bin" >> $GITHUB_PATH
 
     - name: Setup Zephyr project
-      uses: zephyrproject-rtos/action-zephyr-setup@700109a78599c7bb26585f2fb3d2411d65381b9d # v1.0.13
+      uses: zephyrproject-rtos/action-zephyr-setup@5ec39f5cba83346d83a836dfed1524270c660e28 # v1.0.14
       with:
         app-path: zephyr
         toolchains: 'arm-zephyr-eabi'

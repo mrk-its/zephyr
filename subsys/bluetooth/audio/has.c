@@ -531,13 +531,20 @@ static void bond_deleted_cb(uint8_t id, const bt_addr_le_t *addr)
 {
 	struct client_context *context;
 
+	ARG_UNUSED(id);
+
 	context = context_find(addr);
 	if (context != NULL) {
 		context_free(context);
 	}
 
 	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
-		bt_settings_delete("has", 0, addr);
+		int err;
+
+		err = bt_settings_delete("has", 0, addr);
+		if (err != 0) {
+			LOG_WRN("Failed to delete settings: %d", err);
+		}
 	}
 }
 
@@ -735,6 +742,8 @@ static void control_point_ntf_complete(struct bt_conn *conn, void *user_data)
 {
 	struct has_client *client = client_find_by_conn(conn);
 
+	ARG_UNUSED(user_data);
+
 	LOG_DBG("conn %p", (void *)conn);
 
 	/* Resubmit if needed */
@@ -747,6 +756,8 @@ static void control_point_ind_complete(struct bt_conn *conn,
 				       struct bt_gatt_indicate_params *params,
 				       uint8_t err)
 {
+	ARG_UNUSED(params);
+
 	if (err != 0) {
 		/* TODO: Handle error somehow */
 		LOG_ERR("conn %p err 0x%02x", (void *)conn, err);
@@ -1832,7 +1843,8 @@ int bt_has_register(const struct bt_has_features_param *features)
 #endif /* CONFIG_BT_HAS_PRESET_SUPPORT */
 
 #if defined(CONFIG_BT_HAS_PRESET_SUPPORT) || defined(CONFIG_BT_HAS_FEATURES_NOTIFIABLE)
-	bt_conn_auth_info_cb_register(&auth_info_cb);
+	err = bt_conn_auth_info_cb_register(&auth_info_cb);
+	__ASSERT(err == 0, "Failed to register auth info callbacks: %d", err);
 #endif /* CONFIG_BT_HAS_PRESET_SUPPORT || CONFIG_BT_HAS_FEATURES_NOTIFIABLE */
 
 	has.registered = true;

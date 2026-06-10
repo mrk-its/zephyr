@@ -338,8 +338,8 @@ int flash_stm32_ex_op(const struct device *dev, uint16_t code,
 		defined(CONFIG_DT_HAS_ST_STM32L4_FLASH_CONTROLLER_ENABLED) || \
 		defined(CONFIG_DT_HAS_ST_STM32U3_FLASH_CONTROLLER_ENABLED) || \
 		(defined(CONFIG_DT_HAS_ST_STM32L5_FLASH_CONTROLLER_ENABLED) && \
-		(defined(CONFIG_SOC_SERIES_STM32L5X) || \
-		 defined(CONFIG_SOC_SERIES_STM32U5X))))
+		 (defined(CONFIG_SOC_SERIES_STM32L5X) || \
+		  defined(CONFIG_SOC_SERIES_STM32U5X))))
 	case FLASH_STM32_EX_OP_OPTB_READ:
 		if (out == NULL) {
 			rv = -EINVAL;

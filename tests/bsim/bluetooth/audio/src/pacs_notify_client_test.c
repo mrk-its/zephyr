@@ -11,17 +11,18 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
-
-#include "bstests.h"
-#include "common.h"
-#include "common/bt_str.h"
-
 #include <zephyr/bluetooth/hci_types.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/logging/log_core.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
+
+#include "bstests.h"
+#include "common.h"
+#include "common/bt_str.h"
+
 LOG_MODULE_REGISTER(pacs_notify_client_test, LOG_LEVEL_DBG);
 
 struct pacs_instance_t {
@@ -59,33 +60,41 @@ static uint8_t pacs_notify_handler(struct bt_conn *conn,
 				  struct bt_gatt_subscribe_params *params,
 				  const void *data, uint16_t length)
 {
+	ARG_UNUSED(conn);
+	ARG_UNUSED(length);
+
+	if (data == NULL) {
+		LOG_DBG("%p subscription removed", params);
+		return BT_GATT_ITER_CONTINUE;
+	}
+
 	LOG_DBG("%p", params);
 
 	if (params == &pacs_instance.sink_pacs_sub) {
 		LOG_DBG("Received sink_pacs_sub notification");
-		pacs_instance.notify_received_mask |= BIT(0);
+		pacs_instance.notify_received_mask |= BIT(0U);
 	} else if (params == &pacs_instance.source_pacs_sub) {
 		LOG_DBG("Received source_pacs_sub notification");
-		pacs_instance.notify_received_mask |= BIT(1);
+		pacs_instance.notify_received_mask |= BIT(1U);
 	} else if (params == &pacs_instance.sink_loc_sub) {
 		LOG_DBG("Received sink_loc_sub notification");
-		pacs_instance.notify_received_mask |= BIT(2);
+		pacs_instance.notify_received_mask |= BIT(2U);
 	} else if (params == &pacs_instance.source_loc_sub) {
 		LOG_DBG("Received source_loc_sub notification");
-		pacs_instance.notify_received_mask |= BIT(3);
+		pacs_instance.notify_received_mask |= BIT(3U);
 	} else if (params == &pacs_instance.available_contexts_sub) {
 		LOG_DBG("Received available_contexts_sub notification");
-		pacs_instance.notify_received_mask |= BIT(4);
+		pacs_instance.notify_received_mask |= BIT(4U);
 		SET_FLAG(flag_available_contexts_received);
 	} else if (params == &pacs_instance.supported_contexts_sub) {
 		LOG_DBG("Received supported_contexts_sub notification");
-		pacs_instance.notify_received_mask |= BIT(5);
+		pacs_instance.notify_received_mask |= BIT(5U);
 	}
 
 	LOG_DBG("pacs_instance.notify_received_mask is %d", pacs_instance.notify_received_mask);
 
 	if (pacs_instance.notify_received_mask ==
-	    (BIT(0) | BIT(1) | BIT(2) | BIT(3) | BIT(4) | BIT(5))) {
+	    (BIT(0U) | BIT(1U) | BIT(2U) | BIT(3U) | BIT(4U) | BIT(5U))) {
 		pacs_instance.notify_received_mask = 0;
 		SET_FLAG(flag_all_notifications_received);
 	}

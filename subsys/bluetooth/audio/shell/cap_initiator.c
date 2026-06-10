@@ -18,27 +18,28 @@
 #include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
+#include <zephyr/bluetooth/audio/cap.h>
 #include <zephyr/bluetooth/audio/csip.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/crypto.h>
+#include <zephyr/bluetooth/data.h>
 #include <zephyr/bluetooth/gap.h>
+#include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/iso.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/net_buf.h>
+#include <zephyr/shell/shell.h>
 #include <zephyr/shell/shell_string_conv.h>
 #include <zephyr/sys/byteorder.h>
-#include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 #include <zephyr/types.h>
-#include <zephyr/shell/shell.h>
-#include <zephyr/bluetooth/conn.h>
-#include <zephyr/bluetooth/gatt.h>
-#include <zephyr/bluetooth/bluetooth.h>
-#include <zephyr/bluetooth/audio/cap.h>
 
+#include "audio.h"
 #include "common/bt_shell_private.h"
 #include "host/shell/bt.h"
-#include "audio.h"
 
 #if defined(CONFIG_BT_BAP_UNICAST_CLIENT)
 #define UNICAST_SINK_SUPPORTED (CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SNK_COUNT > 0)
@@ -58,6 +59,9 @@ static void cap_discover_cb(struct bt_conn *conn, int err,
 			    const struct bt_csip_set_coordinator_set_member *member,
 			    const struct bt_csip_set_coordinator_csis_inst *csis_inst)
 {
+	ARG_UNUSED(conn);
+	ARG_UNUSED(member);
+
 	if (err != 0) {
 		bt_shell_error("discover failed (%d)", err);
 		return;
@@ -122,13 +126,21 @@ static int cmd_cap_initiator_discover(const struct shell *sh, size_t argc, char 
 	static bool cbs_registered;
 	int err;
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	if (default_conn == NULL) {
 		shell_error(sh, "Not connected");
 		return -ENOEXEC;
 	}
 
 	if (!cbs_registered) {
-		bt_cap_initiator_register_cb(&cbs);
+		err = bt_cap_initiator_register_cb(&cbs);
+		if (err != 0) {
+			shell_error(sh, "Failed to register CAP initiator callbacks: %d", err);
+			return -ENOEXEC;
+		}
+
 		cbs_registered = true;
 	}
 
@@ -377,6 +389,9 @@ static int cmd_cap_initiator_unicast_start(const struct shell *sh, size_t argc, 
 
 static int cmd_cap_initiator_unicast_list(const struct shell *sh, size_t argc, char *argv[])
 {
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	for (size_t i = 0U; i < ARRAY_SIZE(unicast_streams); i++) {
 		if (unicast_streams[i].stream.bap_stream.conn == NULL) {
 			break;
@@ -574,6 +589,9 @@ static int cmd_cap_initiator_unicast_stop(const struct shell *sh, size_t argc, c
 static int cmd_cap_initiator_unicast_cancel(const struct shell *sh, size_t argc, char *argv[])
 {
 	int err = 0;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	err = bt_cap_initiator_unicast_audio_cancel();
 	if (err != 0) {
@@ -823,14 +841,16 @@ static int cap_ac_create_unicast_group(const struct cap_unicast_ac_param *param,
 
 			if (param->snk_cnt[i] > j) {
 				stream_pair_param->tx_param =
-					&snk_group_stream_params[snk_stream_cnt++];
+					&snk_group_stream_params[snk_stream_cnt];
+				snk_stream_cnt++;
 			} else {
 				stream_pair_param->tx_param = NULL;
 			}
 
 			if (param->src_cnt[i] > j) {
 				stream_pair_param->rx_param =
-					&src_group_stream_params[src_stream_cnt++];
+					&src_group_stream_params[src_stream_cnt];
+				src_stream_cnt++;
 			} else {
 				stream_pair_param->rx_param = NULL;
 			}
@@ -999,6 +1019,9 @@ static int cmd_cap_ac_1(const struct shell *sh, size_t argc, char **argv)
 		.src_chan_cnt = 0U,
 	};
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	return cap_ac_unicast(sh, &param);
 }
 #endif /* UNICAST_SINK_SUPPORTED */
@@ -1014,6 +1037,9 @@ static int cmd_cap_ac_2(const struct shell *sh, size_t argc, char **argv)
 		.snk_chan_cnt = 0U,
 		.src_chan_cnt = 1U,
 	};
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	return cap_ac_unicast(sh, &param);
 }
@@ -1031,6 +1057,9 @@ static int cmd_cap_ac_3(const struct shell *sh, size_t argc, char **argv)
 		.src_chan_cnt = 1U,
 	};
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	return cap_ac_unicast(sh, &param);
 }
 #endif /* UNICAST_SINK_SUPPORTED && UNICAST_SRC_SUPPORTED */
@@ -1047,6 +1076,9 @@ static int cmd_cap_ac_4(const struct shell *sh, size_t argc, char **argv)
 		.src_chan_cnt = 0U,
 	};
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	return cap_ac_unicast(sh, &param);
 }
 #endif /* UNICAST_SINK_SUPPORTED */
@@ -1062,6 +1094,9 @@ static int cmd_cap_ac_5(const struct shell *sh, size_t argc, char **argv)
 		.snk_chan_cnt = 2U,
 		.src_chan_cnt = 1U,
 	};
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	return cap_ac_unicast(sh, &param);
 }
@@ -1080,6 +1115,9 @@ static int cmd_cap_ac_6_i(const struct shell *sh, size_t argc, char **argv)
 		.src_chan_cnt = 0U,
 	};
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	return cap_ac_unicast(sh, &param);
 }
 #endif /* CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SNK_COUNT > 1 */
@@ -1095,6 +1133,9 @@ static int cmd_cap_ac_6_ii(const struct shell *sh, size_t argc, char **argv)
 		.snk_chan_cnt = 1U,
 		.src_chan_cnt = 0U,
 	};
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	return cap_ac_unicast(sh, &param);
 }
@@ -1113,6 +1154,9 @@ static int cmd_cap_ac_7_i(const struct shell *sh, size_t argc, char **argv)
 		.src_chan_cnt = 1U,
 	};
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	return cap_ac_unicast(sh, &param);
 }
 
@@ -1127,6 +1171,9 @@ static int cmd_cap_ac_7_ii(const struct shell *sh, size_t argc, char **argv)
 		.snk_chan_cnt = 1U,
 		.src_chan_cnt = 1U,
 	};
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	return cap_ac_unicast(sh, &param);
 }
@@ -1144,6 +1191,9 @@ static int cmd_cap_ac_8_i(const struct shell *sh, size_t argc, char **argv)
 		.src_chan_cnt = 1U,
 	};
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	return cap_ac_unicast(sh, &param);
 }
 #endif /* CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SNK_COUNT > 1 */
@@ -1159,6 +1209,9 @@ static int cmd_cap_ac_8_ii(const struct shell *sh, size_t argc, char **argv)
 		.snk_chan_cnt = 1U,
 		.src_chan_cnt = 1U,
 	};
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	return cap_ac_unicast(sh, &param);
 }
@@ -1176,6 +1229,9 @@ static int cmd_cap_ac_9_i(const struct shell *sh, size_t argc, char **argv)
 		.src_chan_cnt = 1U,
 	};
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	return cap_ac_unicast(sh, &param);
 }
 #endif /* CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SRC_COUNT > 1 */
@@ -1191,6 +1247,9 @@ static int cmd_cap_ac_9_ii(const struct shell *sh, size_t argc, char **argv)
 		.snk_chan_cnt = 0U,
 		.src_chan_cnt = 1U,
 	};
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	return cap_ac_unicast(sh, &param);
 }
@@ -1208,6 +1267,9 @@ static int cmd_cap_ac_10(const struct shell *sh, size_t argc, char **argv)
 		.src_chan_cnt = 2U,
 	};
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	return cap_ac_unicast(sh, &param);
 }
 #endif /* CONFIG_BT_BAP_UNICAST_CLIENT_ASE_SRC_COUNT > 1 */
@@ -1223,6 +1285,9 @@ static int cmd_cap_ac_11_i(const struct shell *sh, size_t argc, char **argv)
 		.snk_chan_cnt = 1U,
 		.src_chan_cnt = 1U,
 	};
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	return cap_ac_unicast(sh, &param);
 }
@@ -1242,6 +1307,9 @@ static int cmd_cap_ac_11_ii(const struct shell *sh, size_t argc, char **argv)
 		.src_chan_cnt = 1U,
 	};
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	return cap_ac_unicast(sh, &param);
 }
 #endif /* CONFIG_BT_MAX_CONN >= 2 */
@@ -1259,6 +1327,9 @@ static int cmd_broadcast_start(const struct shell *sh, size_t argc, char *argv[]
 {
 	struct bt_le_ext_adv *adv = adv_sets[selected_adv];
 	int err;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	if (adv == NULL) {
 		shell_info(sh, "Extended advertising set is NULL");
@@ -1288,6 +1359,8 @@ static int cmd_broadcast_update(const struct shell *sh, size_t argc, char *argv[
 	uint8_t meta[CONFIG_BT_AUDIO_CODEC_CFG_MAX_METADATA_SIZE];
 	size_t len;
 	int err;
+
+	ARG_UNUSED(argc);
 
 	if (default_source.cap_source == NULL || !default_source.is_cap) {
 		shell_info(sh, "CAP Broadcast source not created");
@@ -1321,6 +1394,9 @@ static int cmd_broadcast_stop(const struct shell *sh, size_t argc, char *argv[])
 {
 	int err;
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	if (default_source.cap_source == NULL || !default_source.is_cap) {
 		shell_info(sh, "CAP Broadcast source not created");
 
@@ -1342,6 +1418,9 @@ static int cmd_broadcast_stop(const struct shell *sh, size_t argc, char *argv[])
 static int cmd_broadcast_delete(const struct shell *sh, size_t argc, char *argv[])
 {
 	int err;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	if (IS_ENABLED(CONFIG_BT_CAP_HANDOVER) && default_source.handover_in_progress) {
 		shell_info(sh, "CAP Handover in progress");
@@ -1385,6 +1464,9 @@ int cap_ac_broadcast(const struct shell *sh, size_t argc, char **argv,
 	struct bt_le_ext_adv *adv;
 	int err;
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	if (default_source.cap_source != NULL) {
 		shell_error(sh, "Broadcast Source already created, please delete first");
 		return -ENOEXEC;
@@ -1404,13 +1486,13 @@ int cap_ac_broadcast(const struct shell *sh, size_t argc, char **argv,
 
 	err = bt_le_ext_adv_get_info(adv, &adv_info);
 	if (err != 0) {
-		shell_error(sh, "Failed to get adv info: %d\n", err);
+		shell_error(sh, "Failed to get adv info: %d", err);
 		return -ENOEXEC;
 	}
 
 	err = bt_rand(&broadcast_id, BT_AUDIO_BROADCAST_ID_SIZE);
 	if (err != 0) {
-		bt_shell_error("Unable to generate broadcast ID: %d\n", err);
+		bt_shell_error("Unable to generate broadcast ID: %d", err);
 
 		return -ENOEXEC;
 	}
@@ -1622,22 +1704,28 @@ size_t cap_initiator_pa_data_add(struct bt_data *data_array, const size_t data_a
 		NET_BUF_SIMPLE_DEFINE_STATIC(base_buf, UINT8_MAX);
 		int err;
 
+		if (data_array_size == 0U) {
+			bt_shell_warn("No space for CAP BASE");
+
+			return 0U;
+		}
+
 		net_buf_simple_reset(&base_buf);
 
 		err = bt_cap_initiator_broadcast_get_base(default_source.cap_source, &base_buf);
 		if (err != 0) {
-			bt_shell_error("Unable to get BASE: %d\n", err);
+			bt_shell_error("Unable to get BASE: %d", err);
 
-			return 0;
+			return 0U;
 		}
 
 		data_array[0].type = BT_DATA_SVC_DATA16;
 		data_array[0].data_len = base_buf.len;
 		data_array[0].data = base_buf.data;
 
-		return 1;
+		return 1U;
 	}
 #endif /* CONFIG_BT_BAP_BROADCAST_SOURCE */
 
-	return 0;
+	return 0U;
 }

@@ -26,6 +26,7 @@ LOG_MODULE_REGISTER(nsos_sockets);
 #include <zephyr/net/socket_offload.h>
 #include <zephyr/sys/fdtable.h>
 #include <zephyr/sys/dlist.h>
+#include <zephyr/spinlock.h>
 
 #include "sockets_internal.h"
 #include "nsos.h"
@@ -61,9 +62,17 @@ struct nsos_socket {
 };
 
 static sys_dlist_t nsos_polls = SYS_DLIST_STATIC_INIT(&nsos_polls);
+static struct k_spinlock nsos_polls_lock;
 
-/* Forward declaration of the interface */
-NET_IF_DECLARE(nsos_socket, 0);
+static int nsos_socket_offload_init(const struct device *arg);
+
+static struct offloaded_if_api nsos_iface_offload_api;
+
+NET_DEVICE_OFFLOAD_INIT(nsos_socket, "nsos_socket",
+			nsos_socket_offload_init,
+			NULL,
+			NULL, NULL,
+			0, &nsos_iface_offload_api, NET_ETH_MTU);
 
 static int socket_family_to_nsos_mid(int family, int *family_mid)
 {
@@ -203,7 +212,7 @@ static int nsos_socket_create(int family, int type, int proto)
 		return -1;
 	}
 
-	sock = nsi_host_malloc(sizeof(*sock));
+	sock = nsi_host_calloc(1, sizeof(*sock));
 	if (!sock) {
 		errno = ENOMEM;
 		goto free_fd;
@@ -267,6 +276,7 @@ static int nsos_close(void *obj)
 {
 	struct nsos_socket *sock = obj;
 	struct nsos_socket_poll *poll;
+	k_spinlock_key_t key;
 	int ret;
 
 	ret = nsi_host_close(sock->poll.mid.fd);
@@ -274,12 +284,16 @@ static int nsos_close(void *obj)
 		errno = nsos_adapt_get_zephyr_errno();
 	}
 
+	key = k_spin_lock(&nsos_polls_lock);
+
 	SYS_DLIST_FOR_EACH_CONTAINER(&nsos_polls, poll, node) {
 		if (poll == &sock->poll) {
 			poll->mid.revents = ZSOCK_POLLHUP;
 			poll->mid.cb(&poll->mid);
 		}
 	}
+
+	k_spin_unlock(&nsos_polls_lock, key);
 
 	nsi_host_free(sock);
 
@@ -289,6 +303,10 @@ static int nsos_close(void *obj)
 static void pollcb(struct nsos_mid_pollfd *mid)
 {
 	struct nsos_socket_poll *poll = CONTAINER_OF(mid, struct nsos_socket_poll, mid);
+
+	if (poll->mid.cb == NULL) {
+		return;
+	}
 
 	k_poll_signal_raise(&poll->signal, poll->mid.revents);
 
@@ -302,6 +320,7 @@ static int nsos_poll_prepare(struct nsos_socket *sock, struct zsock_pollfd *pfd,
 			     struct nsos_socket_poll *poll)
 {
 	unsigned int signaled;
+	k_spinlock_key_t key;
 	int flags;
 
 	poll->mid.events = pfd->events;
@@ -314,10 +333,13 @@ static int nsos_poll_prepare(struct nsos_socket *sock, struct zsock_pollfd *pfd,
 
 	k_poll_signal_init(&poll->signal);
 	k_poll_event_init(*pev, K_POLL_TYPE_SIGNAL, K_POLL_MODE_NOTIFY_ONLY, &poll->signal);
+	key = k_spin_lock(&nsos_polls_lock);
 
 	sys_dlist_append(&nsos_polls, &poll->node);
 
 	nsos_adapt_poll_add(&poll->mid);
+
+	k_spin_unlock(&nsos_polls_lock, key);
 
 	/* Let other sockets use another k_poll_event */
 	(*pev)++;
@@ -338,6 +360,7 @@ static int nsos_poll_update(struct nsos_socket *sock, struct zsock_pollfd *pfd,
 			    struct k_poll_event **pev, struct nsos_socket_poll *poll)
 {
 	unsigned int signaled;
+	k_spinlock_key_t key;
 	int flags;
 
 	(*pev)++;
@@ -351,8 +374,15 @@ static int nsos_poll_update(struct nsos_socket *sock, struct zsock_pollfd *pfd,
 		return 0;
 	}
 
+	key = k_spin_lock(&nsos_polls_lock);
+
+	poll->cond = NULL;
+	poll->mid.cb = NULL;
+
 	nsos_adapt_poll_remove(&poll->mid);
 	sys_dlist_remove(&poll->node);
+
+	k_spin_unlock(&nsos_polls_lock, key);
 
 	k_poll_signal_check(&poll->signal, &signaled, &flags);
 	if (!signaled) {
@@ -800,7 +830,7 @@ static int nsos_accept(void *obj, struct net_sockaddr *addr, net_socklen_t *addr
 		goto close_adapt_fd;
 	}
 
-	conn_sock = nsi_host_malloc(sizeof(*conn_sock));
+	conn_sock = nsi_host_calloc(1, sizeof(*conn_sock));
 	if (!conn_sock) {
 		ret = -NSI_ERRNO_MID_ENOMEM;
 		goto free_zephyr_fd;
@@ -808,6 +838,8 @@ static int nsos_accept(void *obj, struct net_sockaddr *addr, net_socklen_t *addr
 
 	conn_sock->fd = zephyr_fd;
 	conn_sock->poll.mid.fd = adapt_fd;
+	conn_sock->recv_timeout = K_FOREVER;
+	conn_sock->send_timeout = K_FOREVER;
 
 	zvfs_finalize_typed_fd(zephyr_fd, conn_sock, &nsos_socket_fd_op_vtable.fd_vtable,
 			       ZVFS_MODE_IFSOCK);
@@ -1691,12 +1723,18 @@ static const struct socket_dns_offload nsos_dns_ops = {
 static void nsos_isr(const void *obj)
 {
 	struct nsos_socket_poll *poll;
+	k_spinlock_key_t key;
+
+	ARG_UNUSED(obj);
+	key = k_spin_lock(&nsos_polls_lock);
 
 	SYS_DLIST_FOR_EACH_CONTAINER(&nsos_polls, poll, node) {
 		if (poll->mid.revents) {
 			poll->mid.cb(&poll->mid);
 		}
 	}
+
+	k_spin_unlock(&nsos_polls_lock, key);
 }
 
 static int nsos_socket_offload_init(const struct device *arg)
@@ -1717,23 +1755,9 @@ static void nsos_iface_api_init(struct net_if *iface)
 	socket_offload_dns_register(&nsos_dns_ops);
 }
 
-static int nsos_iface_enable(const struct net_if *iface, bool enabled)
-{
-	ARG_UNUSED(iface);
-	ARG_UNUSED(enabled);
-	return 0;
-}
-
 static struct offloaded_if_api nsos_iface_offload_api = {
 	.iface_api.init = nsos_iface_api_init,
-	.enable = nsos_iface_enable,
 };
-
-NET_DEVICE_OFFLOAD_INIT(nsos_socket, "nsos_socket",
-			nsos_socket_offload_init,
-			NULL,
-			NULL, NULL,
-			0, &nsos_iface_offload_api, NET_ETH_MTU);
 
 #ifdef CONFIG_NET_NATIVE_OFFLOADED_SOCKETS_CONNECTIVITY_SIM
 

@@ -12,6 +12,7 @@
 #include <stddef.h>
 
 #include <zephyr/autoconf.h>
+#include <zephyr/bluetooth/audio/ascs.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/bluetooth.h>
@@ -39,7 +40,6 @@
 /* Temp struct declarations to handle circular dependencies */
 struct bt_bap_unicast_group;
 struct bt_bap_broadcast_source;
-struct bt_bap_broadcast_sink;
 
 struct bt_bap_ep {
 	uint8_t dir;
@@ -62,7 +62,6 @@ struct bt_bap_ep {
 	/* TODO: Create a union to reduce memory usage */
 	struct bt_bap_unicast_group *unicast_group;
 	struct bt_bap_broadcast_source *broadcast_source;
-	struct bt_bap_broadcast_sink *broadcast_sink;
 };
 
 struct bt_bap_unicast_group_cig_param {

@@ -90,7 +90,7 @@ static void register_default_bearer(struct ccp_call_control_server_test_suite_fi
 		.gtbs = true,
 		.authorization_required = false,
 		.technology = BT_BEARER_TECH_3G,
-		.supported_features = 0,
+		.optional_opcodes = 0,
 	};
 	int err;
 
@@ -120,7 +120,7 @@ static ZTEST_F(ccp_call_control_server_test_suite,
 			.gtbs = false,
 			.authorization_required = false,
 			.technology = BT_BEARER_TECH_3G,
-			.supported_features = 0,
+			.optional_opcodes = 0,
 		};
 		int err;
 
@@ -149,7 +149,7 @@ static ZTEST_F(ccp_call_control_server_test_suite,
 		.gtbs = true,
 		.authorization_required = false,
 		.technology = BT_BEARER_TECH_3G,
-		.supported_features = 0,
+		.optional_opcodes = 0,
 	};
 	int err;
 
@@ -167,7 +167,7 @@ static ZTEST_F(ccp_call_control_server_test_suite,
 		.gtbs = false,
 		.authorization_required = false,
 		.technology = BT_BEARER_TECH_3G,
-		.supported_features = 0,
+		.optional_opcodes = 0,
 	};
 	int err;
 
@@ -185,7 +185,7 @@ static ZTEST_F(ccp_call_control_server_test_suite,
 		.gtbs = true,
 		.authorization_required = false,
 		.technology = BT_BEARER_TECH_3G,
-		.supported_features = 0,
+		.optional_opcodes = 0,
 	};
 	int err;
 
@@ -209,7 +209,7 @@ static ZTEST_F(ccp_call_control_server_test_suite,
 		.gtbs = false,
 		.authorization_required = false,
 		.technology = BT_BEARER_TECH_3G,
-		.supported_features = 0,
+		.optional_opcodes = 0,
 	};
 	int err;
 
@@ -342,12 +342,13 @@ static ZTEST_F(ccp_call_control_server_test_suite,
 static ZTEST_F(ccp_call_control_server_test_suite,
 	       test_bt_ccp_call_control_server_set_bearer_provider_name_inval_long_name)
 {
-	char inval_bearer_name[CONFIG_BT_CCP_CALL_CONTROL_SERVER_PROVIDER_NAME_MAX_LENGTH + 1];
+	char inval_bearer_name[CONFIG_BT_CCP_CALL_CONTROL_SERVER_PROVIDER_NAME_MAX_LENGTH + 2];
 	int err;
 
-	for (size_t i = 0; i < ARRAY_SIZE(inval_bearer_name); i++) {
+	for (size_t i = 0U; i < ARRAY_SIZE(inval_bearer_name); i++) {
 		inval_bearer_name[i] = 'a';
 	}
+	inval_bearer_name[sizeof(inval_bearer_name) - 1U] = '\0';
 
 	register_default_bearer(fixture);
 

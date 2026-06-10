@@ -1969,6 +1969,9 @@ This has been fixed in main for v4.2.0
 - `PR 93576 fix for main
   <https://github.com/zephyrproject-rtos/zephyr/pull/93576>`_
 
+- `PR 100474 fix for 3.7
+  <https://github.com/zephyrproject-rtos/zephyr/pull/100474>`_
+
 :cve:`2025-10457`
 -----------------
 
@@ -2167,7 +2170,22 @@ This has been fixed in main for v4.4.0
 :cve:`2026-1677`
 ----------------
 
-Under embargo until 2026-04-15
+net: TLS 1.2 connections allowed on TLS 1.3 sockets
+
+Zephyr sockets created with ``IPPROTO_TLS_1_3`` can still negotiate a TLS 1.2 connection when both
+TLS versions are enabled in Kconfig, because the socket-level protocol selection is not propagated
+to mbedTLS (e.g. via ``mbedtls_ssl_conf_min_tls_version``). The ClientHello advertises both versions
+and the peer can establish TLS 1.2, so applications that assumed ``IPPROTO_TLS_1_3`` enforces TLS
+1.3 may silently use TLS 1.2 and remain exposed to TLS 1.2-specific weaknesses.
+
+- `Zephyr project bug tracker GHSA-23r2-m5wx-4rvq
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-23r2-m5wx-4rvq>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 102570 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/102570>`_
+
 
 :cve:`2026-1678`
 ----------------
@@ -2216,7 +2234,21 @@ This has been fixed in main for v4.4.0
 :cve:`2026-1681`
 ----------------
 
-Under embargo until 2026-04-15
+net: Stack Overflow with Ping (to own IP Address) via Shell
+
+Issuing an ICMP ping via the ``net ping`` shell command to a device's own IPv4 address causes the
+network stack to recursively re-enter the input path on the same system work-queue stack. Because
+the destination is recognized as a local address, both the echo request and the resulting echo reply
+are processed inline before the current frame returns. The nested input-path frames exceed the
+work-queue stack and trigger a stack overflow.
+
+- `Zephyr project bug tracker GHSA-6fcc-8rwr-w7xx
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-6fcc-8rwr-w7xx>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 102268 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/102268>`_
 
 :cve:`2026-4179`
 ----------------
@@ -2236,7 +2268,35 @@ This has been fixed in main for v4.4.0
 :cve:`2026-5066`
 ----------------
 
-Under embargo until 2026-06-01
+net: sockets: tls: Potential out-of-bounds write/read in socket_op_vtable::connect function
+
+A potential out-of-bounds write/read exists in the TLS socket connect path of the
+network sockets subsystem (``subsys/net/lib/sockets/sockets_tls.c``). When the TLS
+session cache is enabled, ``tls_session_store()`` and ``tls_session_restore()``
+``memcpy`` the caller-supplied address into a fixed-size buffer using the
+caller-controlled ``addrlen`` value without validating it against the destination
+size. Since ``struct net_sockaddr`` is an opaque type, an application can pass an
+``addrlen`` larger than ``sizeof(struct net_sockaddr)`` (for example 128 bytes into
+a 24-byte stack buffer), causing the ``memcpy`` to read and write past the end of
+the address memory used by the TLS session cache. This can lead to a crash and
+denial of service, and potentially to arbitrary code execution.
+
+- `Zephyr project bug tracker GHSA-wgrc-jrf6-24f3
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-wgrc-jrf6-24f3>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 104871 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/104871>`_
+
+- `PR 105044 fix for 4.3
+  <https://github.com/zephyrproject-rtos/zephyr/pull/105044>`_
+
+- `PR 105043 fix for 4.2
+  <https://github.com/zephyrproject-rtos/zephyr/pull/105043>`_
+
+- `PR 105042 fix for 3.7
+  <https://github.com/zephyrproject-rtos/zephyr/pull/105042>`_
 
 :cve:`2026-5067`
 ----------------
@@ -2251,12 +2311,56 @@ Under embargo until 2026-05-21
 :cve:`2026-5071`
 ----------------
 
-Under embargo until 2026-05-18
+can: Local Denial of Service via SocketCAN Send
+
+The SocketCAN send path (``zcan_sendto_ctx``) validated the caller-supplied buffer
+length with a ``NET_ASSERT`` instead of a real runtime check. In production builds
+where assertions are compiled out, a userspace app could pass a buffer shorter
+than ``struct socketcan_frame``, and ``socketcan_to_can_frame()`` would dereference
+fields past the end of that buffer — an out-of-bounds read that can crash the
+system (local DoS) or, because the parsed frame is then transmitted, potentially
+leak adjacent memory.
+
+- `Zephyr project bug tracker GHSA-c3w6-x7m3-3c58
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-c3w6-x7m3-3c58>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 104654 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/104654>`_
+
+- `PR 104679 fix for 4.3
+  <https://github.com/zephyrproject-rtos/zephyr/pull/104679>`_
+
+- `PR 104678 fix for 4.2
+  <https://github.com/zephyrproject-rtos/zephyr/pull/104678>`_
+
+- `PR 104677 fix for 3.7
+  <https://github.com/zephyrproject-rtos/zephyr/pull/104677>`_
 
 :cve:`2026-5072`
 ----------------
 
-Under embargo until 2026-05-18
+net: ptp: Potential Denial of Service via PTP Interval Shift
+
+A bitwise shift vulnerability allows a remote attacker to cause undefined
+behavior and potential crashes in the PTP subsystem by sending a crafted PTP
+Management or Delay Response packet containing a large, unvalidated, negative
+log_announce_interval used in the bitwise shift operation.
+
+- `Zephyr project bug tracker GHSA-3v98-458v-388r
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-3v98-458v-388r>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 104613 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/104613>`_
+
+- `PR 108337 fix for v4.3
+  <https://github.com/zephyrproject-rtos/zephyr/pull/108337>`_
+
+- `PR 108338 fix for v3.7
+  <https://github.com/zephyrproject-rtos/zephyr/pull/108338>`_
 
 :cve:`2026-5589`
 ----------------
@@ -2280,3 +2384,13 @@ This has been fixed in main for v4.4.0
 
 - `PR 102110 fix for main
   <https://github.com/zephyrproject-rtos/zephyr/pull/102110>`_
+
+:cve:`2026-8718`
+----------------
+
+Under embargo until 2026-08-08
+
+:cve:`2026-9263`
+----------------
+
+Under embargo until 2026-06-28

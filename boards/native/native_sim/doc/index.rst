@@ -319,6 +319,20 @@ Here are more details on the peripherals that are currently provided with this b
       (eg. USB to UART dongles). For more information refer to the section
       `TTY UART`_.
 
+**Digital microphone (DMIC)**
+  A file-backed DMIC driver is available for native_sim. It reads PCM sample
+  data from a binary file on the host file system and presents it through the
+  Zephyr DMIC API, which is useful for testing audio capture pipelines.
+
+  By default the input file path is taken from
+  :kconfig:option:`CONFIG_AUDIO_DMIC_NATIVE_SIM_FILE_PATH`. Each DMIC instance
+  exposes its own command line override in the form
+  ``--<device>_file=<path>``. For the default native_sim instance this is
+  ``--dmic0_file=<path>``.
+
+  If the configured host input file does not exist, the driver prints a warning
+  from the native simulator runner side and provides zeroes (silence).
+
 **Real time clock**
   The real time clock model provides a model of a constantly powered clock.
   By default this is initialized to the host time at boot.
@@ -701,6 +715,25 @@ and ``libfuse3-dev:i386`` for 32-bit builds, and ``libfuse3-dev`` for 64-bit bui
 Similarly ``libfuse-dev:i386`` and ``libfuse-dev`` provide the 32 and 64-bit FUSE v2 library
 and headers.
 
+.. _native_mount_fs:
+
+Host filesystem mount
+*********************
+
+Enabling :kconfig:option:`CONFIG_FILE_SYSTEM_NATIVE_MOUNT` allows mounting a path from the host
+filesystem into Zephyr's filesystem hierarchy. This allows Zephyr to access, and modify, host files
+and folders like any other embedded mount point.
+
+To mount a host directory, pass the ``-volume`` option to the executable on the command line:
+
+.. code-block:: console
+
+   $ zephyr.exe -volume=/host/dir:/zephyr/dir
+
+The option follows Docker volume mount syntax: ``HOST-DIR:ZEPHYR-DIR[:ro]``. An optional ``:ro``
+suffix mounts the volume as read-only. The option can be provided multiple times to mount several
+host directories.
+
 .. _native_sim_peripherals_c_compat:
 
 Peripherals and backends C library compatibility
@@ -722,6 +755,7 @@ host libC (:kconfig:option:`CONFIG_EXTERNAL_LIBC`):
      EEPROM, EEPROM emulator, :kconfig:option:`CONFIG_EEPROM_EMULATOR`, All
      Ethernet, :ref:`Eth native_tap <nsim_per_ethe>`, :kconfig:option:`CONFIG_ETH_NATIVE_TAP`, All
      Flash, :ref:`Flash simulator <nsim_per_flash_simu>`, :kconfig:option:`CONFIG_FLASH_SIMULATOR`, All
+     File System, :ref:`Host filesystem mount <native_mount_fs>`, :kconfig:option:`CONFIG_FILE_SYSTEM_NATIVE_MOUNT`, All
      FUSE, :ref:`Host based filesystem access <native_fuse_flash>`, :kconfig:option:`CONFIG_FUSE_FS_ACCESS`, All
      GPIO, GPIO emulator, :kconfig:option:`CONFIG_GPIO_EMUL`, All
      GPIO, SDL GPIO emulator, :kconfig:option:`CONFIG_GPIO_EMUL_SDL`, All

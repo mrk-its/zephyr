@@ -1111,6 +1111,10 @@ __syscall void k_thread_priority_set(k_tid_t thread, int prio);
  * above this call, which is simply input to the priority selection
  * logic.
  *
+ * @note The relative deadline is silently clamped to a maximum of
+ * INT32_MAX / 2 (2^30 cycles) to preserve the scheduler's modular
+ * comparison invariants.
+ *
  * @kconfig_dep{CONFIG_SCHED_DEADLINE}
  *
  * @param thread A thread on which to set the deadline
@@ -1192,6 +1196,10 @@ __syscall void k_reschedule(void);
  * @note You should enable @kconfig{CONFIG_SCHED_CPU_MASK} in your project
  * configuration.
  *
+ * @note Not permitted when @kconfig{CONFIG_SCHED_CPU_MASK_PIN_ONLY} is
+ * enabled.  PIN_ONLY requires every thread to carry exactly one CPU bit;
+ * clearing all bits violates that invariant and will trigger an assertion.
+ *
  * @param thread Thread to operate upon
  * @return Zero on success, otherwise error code
  */
@@ -1205,6 +1213,11 @@ int k_thread_cpu_mask_clear(k_tid_t thread);
  *
  * @note You should enable @kconfig{CONFIG_SCHED_CPU_MASK} in your project
  * configuration.
+ *
+ * @note Not permitted when @kconfig{CONFIG_SCHED_CPU_MASK_PIN_ONLY} is
+ * enabled.  PIN_ONLY requires every thread to carry exactly one CPU bit;
+ * setting all bits violates that invariant and will trigger an assertion.
+ * Use :c:func:`k_thread_cpu_pin` instead.
  *
  * @param thread Thread to operate upon
  * @return Zero on success, otherwise error code
@@ -1232,6 +1245,11 @@ int k_thread_cpu_mask_enable(k_tid_t thread, int cpu);
  *
  * @note You should enable @kconfig{CONFIG_SCHED_CPU_MASK} in your project
  * configuration.
+ *
+ * @note Not permitted when @kconfig{CONFIG_SCHED_CPU_MASK_PIN_ONLY} is
+ * enabled.  PIN_ONLY requires exactly one CPU bit to remain set; removing
+ * that bit would leave an empty mask and will trigger an assertion.
+ * Use :c:func:`k_thread_cpu_pin` to move a thread to a different CPU.
  *
  * @param thread Thread to operate upon
  * @param cpu CPU index
@@ -2417,6 +2435,8 @@ int k_queue_append_list(struct k_queue *queue, void *head, void *tail);
  * This routine adds a list of data items to @a queue in one operation.
  * The data items must be in a singly-linked list implemented using a
  * sys_slist_t object. Upon completion, the original list is empty.
+ * The caller is responsible for ensuring that @a list is not concurrently
+ * accessed by other threads or ISRs.
  *
  * @isr_ok
  *
@@ -2453,8 +2473,6 @@ __syscall void *k_queue_get(struct k_queue *queue, k_timeout_t timeout);
  * This routine removes data item from @a queue. The first word of the
  * data item is reserved for the kernel's use. Removing elements from k_queue
  * rely on sys_slist_find_and_remove which is not a constant time operation.
- *
- * @note @a timeout must be set to K_NO_WAIT if called from ISR.
  *
  * @isr_ok
  *
@@ -5898,6 +5916,30 @@ struct k_mem_slab {
 				  slab_num_blocks, slab_align)
 
 /**
+ * @brief Statically define and initialize a memory slab for blocks of a given type in a public
+ * (non-static) scope.
+ *
+ * The memory slab's buffer contains @a slab_num_blocks memory blocks
+ * that are the size of @a type. The buffer is aligned according to the
+ * alignment requirement of @a type.
+ *
+ * The memory slab can be accessed outside the module where it is defined
+ * using:
+ *
+ * @code extern struct k_mem_slab <name>; @endcode
+ *
+ * @note This macro cannot be used together with a static keyword.
+ *       If such a use-case is desired, use @ref K_MEM_SLAB_DEFINE_STATIC_TYPE
+ *       instead.
+ *
+ * @param name Name of the memory slab.
+ * @param type Type of each memory block.
+ * @param slab_num_blocks Number of memory blocks.
+ */
+#define K_MEM_SLAB_DEFINE_TYPE(name, type, slab_num_blocks)                                        \
+	K_MEM_SLAB_DEFINE(name, sizeof(type), slab_num_blocks, __alignof(type))
+
+/**
  * @brief Statically define and initialize a memory slab in a user-provided memory section with
  * private (static) scope.
  *
@@ -5941,6 +5983,21 @@ struct k_mem_slab {
 #define K_MEM_SLAB_DEFINE_STATIC(name, slab_block_size, slab_num_blocks, slab_align)               \
 	K_MEM_SLAB_DEFINE_IN_SECT_STATIC(name, __noinit_named(k_mem_slab_buf_##name),              \
 					 slab_block_size, slab_num_blocks, slab_align)
+
+/**
+ * @brief Statically define and initialize a memory slab for blocks of a given type in a private
+ * (static) scope.
+ *
+ * The memory slab's buffer contains @a slab_num_blocks memory blocks
+ * that are the size of @a type. The buffer is aligned according to the
+ * alignment requirement of @a type.
+ *
+ * @param name Name of the memory slab.
+ * @param type Type of each memory block.
+ * @param slab_num_blocks Number of memory blocks.
+ */
+#define K_MEM_SLAB_DEFINE_STATIC_TYPE(name, type, slab_num_blocks)                                 \
+	K_MEM_SLAB_DEFINE_STATIC(name, sizeof(type), slab_num_blocks, __alignof(type))
 
 /**
  * @brief Initialize a memory slab.

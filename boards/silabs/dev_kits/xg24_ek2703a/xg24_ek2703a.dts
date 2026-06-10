@@ -22,6 +22,8 @@
 		zephyr,code-partition = &slot0_partition;
 		zephyr,console = &usart0;
 		zephyr,flash = &flash0;
+		zephyr,ieee802154 = &ieee802154;
+		zephyr,openthread-counter = &protimer;
 		zephyr,shell-uart = &usart0;
 		zephyr,sram = &sram0;
 		zephyr,uart-pipe = &usart0;
@@ -41,11 +43,11 @@
 		compatible = "gpio-leds";
 
 		led0: led_0 {
-			gpios = <&gpioa 4 GPIO_ACTIVE_LOW>;
+			gpios = <&gpioa 4 GPIO_ACTIVE_HIGH>;
 		};
 
 		led1: led_1 {
-			gpios = <&gpioa 7 GPIO_ACTIVE_LOW>;
+			gpios = <&gpioa 7 GPIO_ACTIVE_HIGH>;
 		};
 	};
 
@@ -53,12 +55,12 @@
 		compatible = "pwm-leds";
 
 		pwm_led0: pwm_led_0 {
-			pwms = <&timer0_pwm 0 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
+			pwms = <&timer0_pwm 0 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
 			label = "PWM LED 0";
 		};
 
 		pwm_led1: pwm_led_1 {
-			pwms = <&timer0_pwm 1 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
+			pwms = <&timer0_pwm 1 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
 			label = "PWM LED 1";
 		};
 	};
@@ -271,5 +273,15 @@
 };
 
 &bt_hci_silabs {
+	status = "okay";
+};
+
+&ieee802154 {
+	status = "okay";
+	hfxo = <&hfxo>;
+	sleep-clock = <&lfxo>;
+};
+
+&protimer {
 	status = "okay";
 };

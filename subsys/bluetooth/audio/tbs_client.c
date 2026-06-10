@@ -1823,6 +1823,8 @@ static uint8_t primary_discover_tbs_cb(struct bt_conn *conn, const struct bt_gat
 	const uint8_t conn_index = bt_conn_index(conn);
 	struct bt_tbs_server_inst *srv_inst = &srv_insts[conn_index];
 
+	ARG_UNUSED(params);
+
 	LOG_DBG("conn %p attr %p", (void *)conn, attr);
 
 	if (attr != NULL) {
@@ -1832,7 +1834,8 @@ static uint8_t primary_discover_tbs_cb(struct bt_conn *conn, const struct bt_gat
 
 		prim_service = (struct bt_gatt_service_val *)attr->user_data;
 
-		srv_inst->current_inst = &srv_inst->tbs_insts[srv_inst->inst_cnt++];
+		srv_inst->current_inst = &srv_inst->tbs_insts[srv_inst->inst_cnt];
+		srv_inst->inst_cnt++;
 		srv_inst->current_inst->start_handle = attr->handle + 1;
 		srv_inst->current_inst->end_handle = prim_service->end_handle;
 
@@ -1872,6 +1875,8 @@ static uint8_t primary_discover_gtbs_cb(struct bt_conn *conn, const struct bt_ga
 {
 	const uint8_t conn_index = bt_conn_index(conn);
 	struct bt_tbs_server_inst *srv_inst = &srv_insts[conn_index];
+
+	ARG_UNUSED(params);
 
 	LOG_DBG("conn %p attr %p", (void *)conn, attr);
 

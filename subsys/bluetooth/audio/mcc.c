@@ -33,6 +33,7 @@
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 #include <zephyr/types.h>
 
 #include "../services/ots/ots_client_internal.h"
@@ -63,7 +64,6 @@ static bool subscribe_all;
 
 #ifdef CONFIG_BT_MCC_OTS
 NET_BUF_SIMPLE_DEFINE_STATIC(otc_obj_buf, CONFIG_BT_MCC_OTC_OBJ_BUF_SIZE);
-static struct bt_ots_client_cb otc_cb;
 #endif /* CONFIG_BT_MCC_OTS */
 
 
@@ -1353,6 +1353,8 @@ static void disconnected_cb(struct bt_conn *conn, uint8_t reason)
 {
 	struct mcs_instance_t *mcs_inst;
 
+	ARG_UNUSED(reason);
+
 	mcs_inst = lookup_inst_by_conn(conn);
 	if (mcs_inst != NULL) {
 		(void)reset_mcs_inst(mcs_inst);
@@ -1458,8 +1460,6 @@ static uint8_t discover_otc_char_func(struct bt_conn *conn,
 	}
 
 	/* No more attributes found */
-	mcs_inst->otc.cb = &otc_cb;
-	bt_ots_client_register(&mcs_inst->otc);
 
 	LOG_DBG("Setup complete for included OTS");
 	(void)memset(params, 0, sizeof(*params));
@@ -1578,7 +1578,7 @@ static void subscribe_mcs_char_func(struct bt_conn *conn, uint8_t err,
 	LOG_DBG("Subscribed: value handle: %d, ccc handle: %d",
 	       params->value_handle, params->ccc_handle);
 
-	if (params->value_handle == 0) {
+	if (params->value == 0) {
 		/* Unsubscribing, ignore */
 		return;
 	}
@@ -2061,17 +2061,34 @@ int bt_mcc_init(struct bt_mcc_cb *cb)
 	mcc_cb = cb;
 
 #ifdef CONFIG_BT_MCC_OTS
-	/* Set up the callbacks from OTC */
-	/* TODO: Have one single content callback. */
-	/* For now: Use the icon callback for content - it is the first, */
-	/* and this will anyway be reset later. */
-	otc_cb.obj_data_read     = on_icon_content;
-	otc_cb.obj_selected      = on_obj_selected;
-	otc_cb.obj_metadata_read = on_object_metadata;
+	static bool ots_client_registered;
 
-	LOG_DBG("Object selected callback: %p", otc_cb.obj_selected);
-	LOG_DBG("Object content callback: %p", otc_cb.obj_data_read);
-	LOG_DBG("Object metadata callback: %p", otc_cb.obj_metadata_read);
+	if (!ots_client_registered) {
+		static struct bt_ots_client_cb otc_cb;
+		int err;
+
+		/* Set up the callbacks from OTC */
+		/* TODO: Have one single content callback. */
+		/* For now: Use the icon callback for content - it is the first, */
+		/* and this will anyway be reset later. */
+		otc_cb.obj_data_read = on_icon_content;
+		otc_cb.obj_selected = on_obj_selected;
+		otc_cb.obj_metadata_read = on_object_metadata;
+
+		LOG_DBG("Object selected callback: %p", otc_cb.obj_selected);
+		LOG_DBG("Object content callback: %p", otc_cb.obj_data_read);
+		LOG_DBG("Object metadata callback: %p", otc_cb.obj_metadata_read);
+
+		mcs_instance.otc.cb = &otc_cb;
+		err = bt_ots_client_register(&mcs_instance.otc);
+		if (err != 0) {
+			LOG_DBG("Failed to register OTS client: %d", err);
+
+			return err;
+		}
+
+		ots_client_registered = true;
+	}
 #endif /* CONFIG_BT_MCC_OTS */
 
 	return 0;
@@ -3296,6 +3313,8 @@ void on_obj_selected(struct bt_ots_client *otc_inst,
 {
 	struct mcs_instance_t *mcs_inst = lookup_inst_by_conn(conn);
 
+	ARG_UNUSED(otc_inst);
+
 	LOG_DBG("Current object selected");
 
 	if (mcs_inst != NULL) {
@@ -3322,6 +3341,8 @@ int on_icon_content(struct bt_ots_client *otc_inst, struct bt_conn *conn,
 		    bool is_complete)
 {
 	int cb_err = 0;
+
+	ARG_UNUSED(otc_inst);
 
 	LOG_DBG("Received Media Player Icon content, %i bytes at offset %i",
 		len, offset);
@@ -3414,6 +3435,8 @@ int on_track_segments_content(struct bt_ots_client *otc_inst,
 {
 	int cb_err = 0;
 
+	ARG_UNUSED(otc_inst);
+
 	LOG_DBG("Received Track Segments content, %i bytes at offset %i",
 		len, offset);
 
@@ -3464,6 +3487,8 @@ int on_current_track_content(struct bt_ots_client *otc_inst,
 {
 	int cb_err = 0;
 
+	ARG_UNUSED(otc_inst);
+
 	LOG_DBG("Received Current Track content, %i bytes at offset %i",
 	       len, offset);
 
@@ -3501,6 +3526,8 @@ int on_next_track_content(struct bt_ots_client *otc_inst,
 			  uint8_t *data_p, bool is_complete)
 {
 	int cb_err = 0;
+
+	ARG_UNUSED(otc_inst);
 
 	LOG_DBG("Received Next Track content, %i bytes at offset %i",
 	       len, offset);
@@ -3556,7 +3583,8 @@ static void decode_group(struct net_buf_simple *buff,
 
 	while ((tmp_buf.len) && (ids->cnt < CONFIG_BT_MCC_GROUP_RECORDS_MAX)) {
 		ids->ids[ids->cnt].type = net_buf_simple_pull_u8(&tmp_buf);
-		ids->ids[ids->cnt++].id = net_buf_simple_pull_le48(&tmp_buf);
+		ids->ids[ids->cnt].id = net_buf_simple_pull_le48(&tmp_buf);
+		ids->cnt++;
 	}
 }
 #endif /* CONFIG_BT_MCC_LOG_LEVEL_DBG */
@@ -3566,6 +3594,8 @@ int on_parent_group_content(struct bt_ots_client *otc_inst,
 			    uint32_t len, uint8_t *data_p, bool is_complete)
 {
 	int cb_err = 0;
+
+	ARG_UNUSED(otc_inst);
 
 	LOG_DBG("Received Parent Group content, %i bytes at offset %i",
 		len, offset);
@@ -3619,6 +3649,8 @@ int on_current_group_content(struct bt_ots_client *otc_inst,
 {
 	int cb_err = 0;
 
+	ARG_UNUSED(otc_inst);
+
 	LOG_DBG("Received Current Group content, %i bytes at offset %i",
 		len, offset);
 
@@ -3670,6 +3702,8 @@ void on_object_metadata(struct bt_ots_client *otc_inst,
 			uint8_t metadata_read)
 {
 	struct mcs_instance_t *mcs_inst = lookup_inst_by_conn(conn);
+
+	ARG_UNUSED(metadata_read);
 
 	LOG_INF("Object's meta data:");
 	LOG_INF("\tCurrent size\t:%u", otc_inst->cur_object.size.cur);

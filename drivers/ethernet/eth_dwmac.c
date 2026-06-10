@@ -97,7 +97,7 @@ static inline uint32_t phys_lo32(void *addr)
 	return lo32((uintptr_t)addr);
 }
 
-static enum ethernet_hw_caps dwmac_caps(const struct device *dev)
+static enum ethernet_hw_caps dwmac_caps(const struct device *dev, struct net_if *iface __unused)
 {
 	struct dwmac_priv *p = dev->data;
 	enum ethernet_hw_caps caps = 0;
@@ -130,7 +130,7 @@ static inline int net_pkt_get_nbfrags(struct net_pkt *pkt)
 static int dwmac_send(const struct device *dev, struct net_pkt *pkt)
 {
 	struct dwmac_priv *p = dev->data;
-	struct net_buf *frag, *pinned;
+	struct net_buf *frag;
 	unsigned int pkt_len = net_pkt_get_len(pkt);
 	unsigned int d_idx;
 	struct dwmac_dma_desc *d;
@@ -156,17 +156,12 @@ static int dwmac_send(const struct device *dev, struct net_pkt *pkt)
 			goto abort;
 		}
 
-		/* pin this fragment */
-		pinned = net_buf_clone(frag, TX_AVAIL_WAIT);
-		if (!pinned) {
-			LOG_DBG("net_buf_clone() returned NULL");
-			k_sem_give(&p->free_tx_descs);
-			goto abort;
-		}
-		sys_cache_data_flush_range(pinned->data, pinned->len);
-		p->tx_frags[d_idx] = pinned;
-		LOG_DBG("d[%d]: frag %p pinned %p len %d", d_idx,
-			(void *)frag->data, (void *)pinned->data, pinned->len);
+		/* Take reference for the DMA */
+		net_pkt_frag_ref(frag);
+
+		sys_cache_data_flush_range(frag->data, frag->len);
+		p->tx_frags[d_idx] = frag;
+		LOG_DBG("d[%d]: frag %p len %d", d_idx, (void *)frag->data, frag->len);
 
 		/* if no more fragments after this one: */
 		if (!frag->frags) {
@@ -177,9 +172,9 @@ static int dwmac_send(const struct device *dev, struct net_pkt *pkt)
 
 		/* fill the descriptor */
 		d = &p->tx_descs[d_idx];
-		d->des0 = phys_lo32(pinned->data);
-		d->des1 = phys_hi32(pinned->data);
-		d->des2 = pinned->len | des2_flags;
+		d->des0 = phys_lo32(frag->data);
+		d->des1 = phys_hi32(frag->data);
+		d->des2 = frag->len | des2_flags;
 		d->des3 = pkt_len | des3_flags;
 
 		/* clear the FD flag on subsequent descriptors */
@@ -202,7 +197,7 @@ static int dwmac_send(const struct device *dev, struct net_pkt *pkt)
 
 abort:
 	while (d_idx != p->tx_desc_head) {
-		/* release already pinned fragments */
+		/* release already prepared fragments */
 		DEC_WRAP(d_idx, NB_TX_DESCS);
 		frag = p->tx_frags[d_idx];
 		net_pkt_frag_unref(frag);
@@ -469,6 +464,7 @@ static void dwmac_set_mac_addr(const struct device *dev, const uint8_t *addr, in
 }
 
 static int dwmac_set_config(const struct device *dev,
+			    struct net_if *iface __unused,
 			    enum ethernet_config_type type,
 			    const struct ethernet_config *config)
 {
@@ -558,7 +554,7 @@ static void phy_link_state_changed(const struct device *phy_dev,
 	}
 }
 
-static const struct device *dwmac_get_phy(const struct device *dev)
+static const struct device *dwmac_get_phy(const struct device *dev, struct net_if *iface __unused)
 {
 	const struct dwmac_config *cfg = dev->config;
 

@@ -12,6 +12,7 @@
 #include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/addr.h>
 #include <zephyr/bluetooth/assigned_numbers.h>
+#include <zephyr/bluetooth/audio/ascs.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
 #include <zephyr/bluetooth/audio/lc3.h>
@@ -33,6 +34,7 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/sys_clock.h>
+#include <zephyr/toolchain.h>
 #include <zephyr/types.h>
 
 #include "stream_tx.h"
@@ -69,16 +71,16 @@ static struct audio_source {
 static size_t configured_source_stream_count;
 
 static const struct bt_bap_qos_cfg_pref qos_pref =
-	BT_BAP_QOS_CFG_PREF(true, BT_GAP_LE_PHY_2M, 0x02, 10, 40000, 40000, 40000, 40000);
+	BT_BAP_QOS_CFG_PREF(true, BT_GAP_LE_PHY_2M, 0x02U, 10U, 40000U, 40000U, 40000U, 40000U);
 
-static K_SEM_DEFINE(sem_disconnected, 0, 1);
+static K_SEM_DEFINE(sem_disconnected, 0U, 1U);
 
 static uint8_t unicast_server_addata[] = {
 	BT_UUID_16_ENCODE(BT_UUID_ASCS_VAL), /* ASCS UUID */
 	BT_AUDIO_UNICAST_ANNOUNCEMENT_TARGETED, /* Target Announcement */
 	BT_BYTES_LIST_LE16(AVAILABLE_SINK_CONTEXT),
 	BT_BYTES_LIST_LE16(AVAILABLE_SOURCE_CONTEXT),
-	0x00, /* Metadata length */
+	0x00U, /* Metadata length */
 };
 
 /* TODO: Expand with BAP data */
@@ -93,8 +95,8 @@ static const struct bt_data ad[] = {
 
 #include "lc3.h"
 
-#define MAX_SAMPLE_RATE         48000
-#define MAX_FRAME_DURATION_US   10000
+#define MAX_SAMPLE_RATE         48000U
+#define MAX_FRAME_DURATION_US   10000U
 #define MAX_NUM_SAMPLES         ((MAX_FRAME_DURATION_US * MAX_SAMPLE_RATE) / USEC_PER_SEC)
 
 static lc3_decoder_t lc3_decoder;
@@ -105,8 +107,10 @@ static int frames_per_sdu;
 
 void print_hex(const uint8_t *ptr, size_t len)
 {
-	while (len-- != 0) {
-		printk("%02x", *ptr++);
+	while (len != 0U) {
+		printk("%02x", *ptr);
+		ptr++;
+		len--;
 	}
 }
 
@@ -190,7 +194,7 @@ static enum bt_audio_dir stream_dir(const struct bt_bap_stream *stream)
 static struct bt_bap_stream *stream_alloc(enum bt_audio_dir dir)
 {
 	if (dir == BT_AUDIO_DIR_SOURCE) {
-		for (size_t i = 0; i < ARRAY_SIZE(source_streams); i++) {
+		for (size_t i = 0U; i < ARRAY_SIZE(source_streams); i++) {
 			struct bt_bap_stream *stream = &source_streams[i].stream;
 
 			if (!stream->conn) {
@@ -198,7 +202,7 @@ static struct bt_bap_stream *stream_alloc(enum bt_audio_dir dir)
 			}
 		}
 	} else {
-		for (size_t i = 0; i < ARRAY_SIZE(sink_streams); i++) {
+		for (size_t i = 0U; i < ARRAY_SIZE(sink_streams); i++) {
 			struct bt_bap_stream *stream = &sink_streams[i].stream;
 
 			if (!stream->conn) {
@@ -246,6 +250,9 @@ static int lc3_reconfig(struct bt_bap_stream *stream, enum bt_audio_dir dir,
 			const struct bt_audio_codec_cfg *codec_cfg,
 			struct bt_bap_qos_cfg_pref *const pref, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(dir);
+	ARG_UNUSED(pref);
+
 	printk("ASE Codec Reconfig: stream %p\n", stream);
 
 	print_codec_cfg(codec_cfg);
@@ -264,6 +271,8 @@ static int lc3_reconfig(struct bt_bap_stream *stream, enum bt_audio_dir dir,
 static int lc3_qos(struct bt_bap_stream *stream, const struct bt_bap_qos_cfg *qos,
 		   struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("QoS: stream %p qos %p\n", stream, qos);
 
 	print_qos(qos);
@@ -274,6 +283,8 @@ static int lc3_qos(struct bt_bap_stream *stream, const struct bt_bap_qos_cfg *qo
 static int lc3_enable(struct bt_bap_stream *stream, const uint8_t meta[], size_t meta_len,
 		      struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(meta);
+
 	printk("Enable: stream %p meta_len %zu\n", stream, meta_len);
 
 #if defined(CONFIG_LIBLC3)
@@ -317,6 +328,8 @@ static int lc3_enable(struct bt_bap_stream *stream, const uint8_t meta[], size_t
 			return -1;
 		}
 	}
+#else
+	ARG_UNUSED(rsp);
 #endif
 
 	return 0;
@@ -324,6 +337,8 @@ static int lc3_enable(struct bt_bap_stream *stream, const uint8_t meta[], size_t
 
 static int lc3_start(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Start: stream %p\n", stream);
 
 	for (size_t i = 0U; i < configured_source_stream_count; i++) {
@@ -360,6 +375,8 @@ static int lc3_metadata(struct bt_bap_stream *stream, const uint8_t meta[], size
 
 static int lc3_disable(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Disable: stream %p\n", stream);
 
 	return 0;
@@ -367,6 +384,8 @@ static int lc3_disable(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp
 
 static int lc3_stop(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Stop: stream %p\n", stream);
 
 	return 0;
@@ -374,6 +393,8 @@ static int lc3_stop(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 
 static int lc3_release(struct bt_bap_stream *stream, struct bt_bap_ascs_rsp *rsp)
 {
+	ARG_UNUSED(rsp);
+
 	printk("Release: stream %p\n", stream);
 	return 0;
 }
@@ -684,11 +705,11 @@ int main(void)
 	bt_pacs_cap_register(BT_AUDIO_DIR_SINK, &cap_sink);
 	bt_pacs_cap_register(BT_AUDIO_DIR_SOURCE, &cap_source);
 
-	for (size_t i = 0; i < ARRAY_SIZE(sink_streams); i++) {
+	for (size_t i = 0U; i < ARRAY_SIZE(sink_streams); i++) {
 		bt_bap_stream_cb_register(&sink_streams[i].stream, &stream_ops);
 	}
 
-	for (size_t i = 0; i < ARRAY_SIZE(source_streams); i++) {
+	for (size_t i = 0U; i < ARRAY_SIZE(source_streams); i++) {
 		bt_bap_stream_cb_register(&source_streams[i].stream,
 					    &stream_ops);
 	}

@@ -15,11 +15,12 @@
 
 #include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/assigned_numbers.h>
+#include <zephyr/bluetooth/att.h>
 #include <zephyr/bluetooth/audio/audio.h>
 #include <zephyr/bluetooth/audio/bap.h>
-#include <zephyr/bluetooth/att.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/data.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/bluetooth/hci_types.h>
@@ -58,7 +59,8 @@ int bt_audio_data_parse(const uint8_t ltv[], size_t size,
 
 		i++; /* Increment as we have parsed the len field */
 
-		data.type = ltv[i++];
+		data.type = ltv[i];
+		i++;
 		data.data_len = len - sizeof(data.type);
 
 		if (data.data_len > 0) {
@@ -153,6 +155,9 @@ uint8_t bt_audio_get_chan_count(enum bt_audio_location chan_allocation)
 
 static bool valid_ltv_cb(struct bt_data *data, void *user_data)
 {
+	ARG_UNUSED(data);
+	ARG_UNUSED(user_data);
+
 	/* just return true to continue parsing as bt_data_parse will validate for us */
 	return true;
 }
@@ -256,6 +261,8 @@ ssize_t bt_audio_write_chrc(struct bt_conn *conn, const struct bt_gatt_attr *att
 ssize_t bt_audio_ccc_cfg_write(struct bt_conn *conn, const struct bt_gatt_attr *attr,
 			       uint16_t value)
 {
+	ARG_UNUSED(attr);
+
 	if (conn != NULL) {
 		uint8_t err;
 

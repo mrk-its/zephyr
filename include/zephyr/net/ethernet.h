@@ -496,7 +496,7 @@ struct ethernet_api {
 	 * for that driver.
 	 */
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
-	struct net_stats_eth *(*get_stats)(const struct device *dev);
+	struct net_stats_eth *(*get_stats)(const struct device *dev, struct net_if *iface);
 
 	/** Optional function to collect ethernet specific statistics with
 	 * type filter. If NULL, get_stats() will be called instead, which
@@ -504,25 +504,28 @@ struct ethernet_api {
 	 * @param type Bitmask of ethernet_stats_type values.
 	 */
 	struct net_stats_eth *(*get_stats_type)(const struct device *dev,
+						 struct net_if *iface,
 						 uint32_t type);
 #endif
 
 	/** Start the device */
-	int (*start)(const struct device *dev);
+	int (*start)(const struct device *dev, struct net_if *iface);
 
 	/** Stop the device */
-	int (*stop)(const struct device *dev);
+	int (*stop)(const struct device *dev, struct net_if *iface);
 
 	/** Get the device capabilities */
-	enum ethernet_hw_caps (*get_capabilities)(const struct device *dev);
+	enum ethernet_hw_caps (*get_capabilities)(const struct device *dev, struct net_if *iface);
 
 	/** Set specific hardware configuration */
 	int (*set_config)(const struct device *dev,
+			  struct net_if *iface,
 			  enum ethernet_config_type type,
 			  const struct ethernet_config *config);
 
 	/** Get hardware specific configuration */
 	int (*get_config)(const struct device *dev,
+			  struct net_if *iface,
 			  enum ethernet_config_type type,
 			  struct ethernet_config *config);
 
@@ -538,11 +541,11 @@ struct ethernet_api {
 
 	/** Return ptp_clock device that is tied to this ethernet device */
 #if defined(CONFIG_PTP_CLOCK)
-	const struct device *(*get_ptp_clock)(const struct device *dev);
+	const struct device *(*get_ptp_clock)(const struct device *dev, struct net_if *iface);
 #endif /* CONFIG_PTP_CLOCK */
 
 	/** Return PHY device that is tied to this ethernet device */
-	const struct device *(*get_phy)(const struct device *dev);
+	const struct device *(*get_phy)(const struct device *dev, struct net_if *iface);
 
 	/** Send a network packet */
 	int (*send)(const struct device *dev, struct net_pkt *pkt);
@@ -636,16 +639,16 @@ struct ethernet_context {
 	 */
 	enum net_l2_flags ethernet_l2_flags;
 
-#if defined(CONFIG_NET_L2_PTP)
-	/** The PTP port number for this network device. We need to store the
+#if defined(CONFIG_NET_GPTP)
+	/** The gPTP port number for this network device. We need to store the
 	 * port number here so that we do not need to fetch it for every
-	 * incoming PTP packet.
+	 * incoming gPTP packet.
 	 */
-	int port;
+	uint16_t gptp_port;
 #endif
 
 #if defined(CONFIG_NET_DSA)
-	/** DSA port tpye */
+	/** DSA port type */
 	enum dsa_port_type dsa_port;
 
 	/** DSA switch context pointer */
@@ -878,7 +881,7 @@ enum ethernet_hw_caps net_eth_get_hw_capabilities(struct net_if *iface)
 		return caps;
 	}
 
-	return (enum ethernet_hw_caps)(caps | api->get_capabilities(dev));
+	return (enum ethernet_hw_caps)(caps | api->get_capabilities(dev, iface));
 }
 
 /**
@@ -901,7 +904,7 @@ int net_eth_get_hw_config(struct net_if *iface, enum ethernet_config_type type,
 		return -ENOTSUP;
 	}
 
-	return eth->get_config(dev, type, config);
+	return eth->get_config(dev, iface, type, config);
 }
 
 
@@ -1444,40 +1447,6 @@ static inline const struct device *net_eth_get_ptp_clock(struct net_if *iface)
 __syscall const struct device *net_eth_get_ptp_clock_by_index(int index);
 
 /**
- * @brief Return PTP port number attached to this interface.
- *
- * @param iface Network interface
- *
- * @return Port number, no such port if < 0
- */
-#if defined(CONFIG_NET_L2_PTP)
-int net_eth_get_ptp_port(struct net_if *iface);
-#else
-static inline int net_eth_get_ptp_port(struct net_if *iface)
-{
-	ARG_UNUSED(iface);
-
-	return -ENODEV;
-}
-#endif /* CONFIG_NET_L2_PTP */
-
-/**
- * @brief Set PTP port number attached to this interface.
- *
- * @param iface Network interface
- * @param port Port number to set
- */
-#if defined(CONFIG_NET_L2_PTP)
-void net_eth_set_ptp_port(struct net_if *iface, int port);
-#else
-static inline void net_eth_set_ptp_port(struct net_if *iface, int port)
-{
-	ARG_UNUSED(iface);
-	ARG_UNUSED(port);
-}
-#endif /* CONFIG_NET_L2_PTP */
-
-/**
  * @brief Check if the Ethernet L2 network interface can perform Wi-Fi.
  *
  * @param iface Pointer to network interface
@@ -1504,6 +1473,18 @@ static inline bool net_eth_type_is_ethernet(struct net_if *iface)
 	const struct ethernet_context *ctx = (struct ethernet_context *)net_if_l2_data(iface);
 
 	return ctx->eth_if_type == L2_ETH_IF_TYPE_ETHERNET;
+}
+
+/**
+ * @brief Set the Ethernet interface type to Wi-Fi.
+ *
+ * @param iface Network interface
+ */
+static inline void net_eth_set_if_type_wifi(struct net_if *iface)
+{
+	struct ethernet_context *ctx = (struct ethernet_context *)net_if_l2_data(iface);
+
+	ctx->eth_if_type = L2_ETH_IF_TYPE_WIFI;
 }
 
 /**

@@ -20,18 +20,20 @@
 #include <zephyr/bluetooth/assigned_numbers.h>
 #include <zephyr/bluetooth/audio/csip.h>
 #include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/data.h>
 #include <zephyr/bluetooth/gap.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/kernel.h>
+#include <zephyr/shell/shell.h>
 #include <zephyr/shell/shell_string_conv.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain.h>
 #include <zephyr/types.h>
-#include <zephyr/shell/shell.h>
 
-#include "host/shell/bt.h"
 #include "common/bt_shell_private.h"
+#include "host/shell/bt.h"
 
 struct bt_csip_set_member_svc_inst *svc_inst;
 static uint8_t sirk_read_rsp = BT_CSIP_READ_SIRK_REQ_RSP_ACCEPT;
@@ -40,6 +42,8 @@ static void locked_cb(struct bt_conn *conn,
 		      struct bt_csip_set_member_svc_inst *inst,
 		      bool locked)
 {
+	ARG_UNUSED(inst);
+
 	if (conn == NULL) {
 		bt_shell_error("Server %s the device",
 			       locked ? "locked" : "released");
@@ -55,6 +59,8 @@ static uint8_t sirk_read_req_cb(struct bt_conn *conn,
 	static const char *const rsp_strings[] = {
 		"Accept", "Accept Enc", "Reject", "OOB only"
 	};
+
+	ARG_UNUSED(inst);
 
 	bt_shell_print("Client %s requested to read the sirk. Responding with %s",
 		       bt_conn_dst_str(conn), rsp_strings[sirk_read_rsp]);
@@ -169,6 +175,8 @@ static int cmd_csip_set_member_sirk(const struct shell *sh, size_t argc, char *a
 	size_t len;
 	int err;
 
+	ARG_UNUSED(argc);
+
 	if (svc_inst == NULL) {
 		shell_error(sh, "CSIS not registered yet");
 
@@ -196,6 +204,9 @@ static int cmd_csip_set_member_sirk(const struct shell *sh, size_t argc, char *a
 static int cmd_csip_set_member_set_size_and_rank(const struct shell *sh, size_t argc, char *argv[])
 {
 	struct bt_csip_set_member_set_info info;
+
+	ARG_UNUSED(argc);
+
 	unsigned long set_size;
 	unsigned long rank;
 	int err = 0;
@@ -254,6 +265,9 @@ static int cmd_csip_set_member_get_info(const struct shell *sh, size_t argc, cha
 	struct bt_csip_set_member_set_info info;
 	int err;
 
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
+
 	if (svc_inst == NULL) {
 		shell_error(sh, "CSIS not registered yet");
 
@@ -284,6 +298,9 @@ static int cmd_csip_set_member_get_info(const struct shell *sh, size_t argc, cha
 static int cmd_csip_set_member_lock(const struct shell *sh, size_t argc, char *argv[])
 {
 	int err;
+
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
 	err = bt_csip_set_member_lock(svc_inst, true, false);
 	if (err != 0) {
@@ -326,6 +343,8 @@ static int cmd_csip_set_member_release(const struct shell *sh, size_t argc,
 
 static int cmd_csip_set_member_sirk_rsp(const struct shell *sh, size_t argc, char *argv[])
 {
+	ARG_UNUSED(argc);
+
 	if (strcmp(argv[1], "accept") == 0) {
 		sirk_read_rsp = BT_CSIP_READ_SIRK_REQ_RSP_ACCEPT;
 	} else if (strcmp(argv[1], "accept_enc") == 0) {
@@ -344,6 +363,8 @@ static int cmd_csip_set_member_sirk_rsp(const struct shell *sh, size_t argc, cha
 
 static int cmd_csip_set_member(const struct shell *sh, size_t argc, char **argv)
 {
+	ARG_UNUSED(argc);
+
 	shell_error(sh, "%s unknown parameter: %s", argv[0], argv[1]);
 
 	return -ENOEXEC;

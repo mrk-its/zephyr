@@ -14,16 +14,18 @@
 #define AUDIO_SHELL_AUDIO_H
 
 #include <errno.h>
-#include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
 
 #include <zephyr/autoconf.h>
 #include <zephyr/bluetooth/assigned_numbers.h>
+#include <zephyr/bluetooth/audio/ascs.h>
 #include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/data.h>
 #include <zephyr/bluetooth/hci_types.h>
 #include <zephyr/bluetooth/iso.h>
 #include <zephyr/kernel.h>
@@ -31,7 +33,6 @@
 #include <zephyr/sys/atomic_types.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/clock.h>
-#include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/sys_clock.h>
@@ -125,7 +126,6 @@ struct shell_stream {
 			size_t left_read_idx;
 			/* Indicates where to read right USB data in the ring buffer */
 			size_t right_read_idx;
-			size_t right_ring_buf_fail_cnt;
 #endif /* CONFIG_USBD_AUDIO2_CLASS */
 #endif /* CONFIG_LIBLC3 */
 		} tx;
@@ -930,6 +930,8 @@ static inline bool print_base_subgroup_cb(const struct bt_bap_base_subgroup *sub
 	struct bt_audio_codec_cfg codec_cfg;
 	uint8_t *data;
 	int ret;
+
+	ARG_UNUSED(user_data);
 
 	bt_shell_print("Subgroup %p:", subgroup);
 
