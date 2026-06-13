@@ -2301,12 +2301,52 @@ This has been fixed in main for v4.4.0
 :cve:`2026-5067`
 ----------------
 
-Under embargo until 2026-05-23
+Out-of-bounds read/write in HTTP WebSocket upgrade via non-null-terminated
+Sec-WebSocket-Key
+
+A remote, unauthenticated attacker can trigger memory corruption in Zephyr's
+HTTP server WebSocket upgrade path by sending a crafted ``Sec-WebSocket-Key``
+header that is copied without guaranteed NUL termination and then passed to
+``strlen()``. This can cause out-of-bounds read and out-of-bounds write on
+stack memory, leading to a crash (denial of service) and potentially code
+execution. The path is reachable when ``CONFIG_HTTP_SERVER_WEBSOCKET`` is
+enabled.
+
+- `Zephyr project bug tracker GHSA-wgr4-9pwq-94vj
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-wgr4-9pwq-94vj>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 104740 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/104740>`_
+
+- `PR 107927 fix for 4.3
+  <https://github.com/zephyrproject-rtos/zephyr/pull/107927>`_
 
 :cve:`2026-5068`
 ----------------
 
-Under embargo until 2026-05-21
+Bluetooth: L2CAP LE CoC: remote out-of-bounds write via segmentation counter
+stored in net_buf user_data
+
+A remote, unauthenticated BLE peer can trigger a 2-byte out-of-bounds write in
+the Bluetooth host during L2CAP LE CoC SDU reassembly. When the application
+enables segmentation (via ``chan_ops.alloc_buf``) and the chosen RX pool has a
+``user_data_size`` smaller than 2 bytes, the segmentation counter stored in the
+``net_buf`` user_data area is written out of bounds in
+``l2cap_chan_le_recv_seg`` (``subsys/bluetooth/host/l2cap.c``). This can lead to
+heap corruption and a fatal error.
+
+- `Zephyr project bug tracker GHSA-qrcq-hxwj-mqxm
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-qrcq-hxwj-mqxm>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 104913 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/104913>`_
+
+- `PR 108335 fix for 4.3
+  <https://github.com/zephyrproject-rtos/zephyr/pull/108335>`_
 
 :cve:`2026-5071`
 ----------------
@@ -2365,7 +2405,34 @@ This has been fixed in main for v4.4.0
 :cve:`2026-5589`
 ----------------
 
-Under embargo until 2026-06-03
+Bluetooth: Mesh: Out-of-bounds write caused by an integer underflow
+
+An integer underflow in ``bt_mesh_sol_recv()`` in the Bluetooth Mesh solicitation
+handling (``subsys/bluetooth/mesh/solicitation.c``) leads to an out-of-bounds write.
+When ``CONFIG_BT_MESH_OD_PRIV_PROXY_SRV`` is enabled, the function parses solicitation
+PDUs from raw BLE advertising payloads. The AD parsing loop reads an attacker-controlled
+length byte and computes ``reported_len - 3`` without checking that ``reported_len`` is
+at least 3. When the value is smaller, the signed subtraction yields a negative number
+that bypasses the length guard and is then implicitly converted to a very large
+``size_t``, advancing the buffer pointer far out of bounds so that subsequent reads
+dereference invalid memory. A nearby BLE device can trigger this with a non-connectable
+advertisement carrying a UUID16 AD structure and a crafted length byte, with no pairing
+or prior association required, potentially leading to denial of service or arbitrary
+code execution.
+
+- `Zephyr project bug tracker GHSA-4pm9-4v7f-x6gr
+  <https://github.com/zephyrproject-rtos/zephyr/security/advisories/GHSA-4pm9-4v7f-x6gr>`_
+
+This has been fixed in main for v4.4.0
+
+- `PR 105585 fix for main
+  <https://github.com/zephyrproject-rtos/zephyr/pull/105585>`_
+
+- `PR 108334 fix for 4.3
+  <https://github.com/zephyrproject-rtos/zephyr/pull/108334>`_
+
+- `PR 108333 fix for 3.7
+  <https://github.com/zephyrproject-rtos/zephyr/pull/108333>`_
 
 :cve:`2026-5590`
 ----------------

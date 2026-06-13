@@ -95,6 +95,17 @@ Boards
   Applications that relied on ``CONFIG_GPIO=y`` being the default will need to enable
   the option explicitly. (:github:`109468`)
 
+* Ezurio bl54l15u_dvk has been removed. The bl54l15_dvk remains available and supports
+  both the bl54l15 and bl54l15u variants of the module, with the same features.
+  Boards using the bl54l15u_dvk should migrate to bl54l15_dvk/nrf54l15/cpuapp or
+  bl54l15_dvk/nrf54l15/cpuflpr as appropriate.
+
+* The default MCUboot signature type for the boards stm32h573i_dk and b_u585i_iot02a has
+  been changed from RSA-3072 to EC-P256. This affects builds that have MCUboot enabled in
+  TF-M (:kconfig:option:`CONFIG_TFM_BL2`). If you wish to keep using RSA-3072, you need
+  to set :kconfig:option:`CONFIG_TFM_MCUBOOT_SIGNATURE_TYPE` to ``"RSA-3072"``.
+  Otherwise, make sure to have your own signing keys of the signature type in use.
+
 Device Drivers and Devicetree
 *****************************
 
@@ -257,6 +268,15 @@ Flash
   of each plane in the flash device. For devices with a single plane, this should be set to the
   same value as ``size-bytes``.
 
+Fuel Gauge
+==========
+
+* Various fuel gauge property enums and union fields have been deprecated in
+  favor of new versions with explicit unit suffixes. Applications and drivers
+  should migrate to the unit-suffixed names. For example,
+  ``FUEL_GAUGE_CURRENT`` (``val.current``) is replaced by
+  ``FUEL_GAUGE_CURRENT_UA`` (``val.current_ua``).
+
 GPIO
 ====
 
@@ -331,11 +351,10 @@ Interrupt Controllers
 NXP
 ===
 
-* :kconfig:option:`CONFIG_MCUX_LPTMR_TIMER` no longer defaults to ``y`` based on the
-  ``/chosen/zephyr,system-timer`` chosen node being compatible with
-  :dtcompatible:`nxp,lptmr`. Out-of-tree SoCs and boards that rely on the LPTMR
-  as the system timer must now explicitly default the symbol in their
-  ``Kconfig.defconfig`` (for example ``default y if PM``).
+* :kconfig:option:`CONFIG_MCUX_LPTMR_TIMER` now defaults to ``y`` when the
+  ``/chosen/zephyr,system-timer`` chosen node is enabled and compatible with
+  :dtcompatible:`nxp,lptmr`. Boards that do not use LPTMR as the system timer
+  must not select an LPTMR node in ``/chosen/zephyr,system-timer``.
 
 * Kinetis KE1xF no longer requires a board overlay to designate the system
   timer when :kconfig:option:`CONFIG_PM` is enabled. The SoC DTSI now sets the
@@ -438,6 +457,14 @@ STM32
   ``pinctrl-names``, ``mclk-enable``, ``mclk-divider``, ``synchronous``, and
   ``fifo-threshold``. (:github:`104423`)
 
+* :dtcompatible:`st,hci-stm32wba` and :dtcompatible:`st,stm32wba-ieee802154` nodes
+  (with nodelabels ``bt_hci_wba`` and ``ieee802154`` respectively) are now
+  children of a top-level :dtcompatible:`st,stm32wba-radio` node with nodelabel
+  ``radio``. The ``interrupts`` property is now set on the ``&radio`` node instead
+  of being duplicated on both ``&bt_hci_wba`` and ``&ieee802154`` nodes. Out-of-tree
+  boards which modified the ``interrupts`` property on either node must be updated
+  to set the property on the top-level ``&radio`` node instead. (:github:`110546`)
+
 Syscon
 ======
 
@@ -453,6 +480,11 @@ USB
   from :samp:`usbotg_hs{N}` to :samp:`usbphyc{N}` nodes at SoC DTSI level. Boards which
   use an STM32N6 SoC with custom clock mux configuration must now set the ``clocks``
   property on :samp:`usbphyc{N}` instead of :samp:`usbotg_hs{N}`. (:github:`107813`)
+* When host issues control transfer with data stage from host to device, the USB control transfer
+  callbacks ``control_to_dev`` in :c:struct:`usbd_class_api` and ``to_dev`` in
+  :c:struct:`usbd_vreq_node` are now called with NULL ``buf`` before data stage is received.
+  This allows the stack to return STALL during data stage. Out-of-tree class and vendor handlers
+  need to be updated. (:github:`108840`)
 
 WiFi
 ====
@@ -624,6 +656,9 @@ Networking
   been removed. TF-PSA-Crypto cannot decrypt their DES-encrypted PKCS#8 private
   keys. Use ``samples/net/wifi/test_certs/rsa2k_no_des`` instead, or set
   :envvar:`WIFI_TEST_CERTS_DIR` to another AES-encrypted certificate directory.
+
+* ``net_if_config_get`` was removed as it was a duplicate of :c:func:`net_if_get_config`.
+  (:github:`110930`)
 
 
 Ethernet
